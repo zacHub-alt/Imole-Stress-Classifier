@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Ìmọ̀lè Stress Classifier{% endblock %}
+{% block content %}
+<div class="text-center mt-5">
+    <h1 class="mb-4">Ìmọ̀lè Stress Classifier</h1>
+    <p class="lead">Welcome to Ìmọ̀lè. Discover your current stress level and receive gentle encouragement tailored for you.</p>
+    <p class="mb-4">This tool is designed to help you reflect on your well-being. Your responses are confidential and will help us provide better support for your journey.</p>
+    <form method="GET" action="{{ url_for('test') }}">
+        <button type="submit" class="btn btn-primary btn-lg">Continue</button>
+    </form>
+    <!-- Signature quote -->
+<footer class="text-center mt-5 mb-3">
+  <p class="signature-quote">In God I trust;
+    In God you trust;
+    In God we trust; He takes control.  
+  </p>
+</footer>
+{% endblock %}

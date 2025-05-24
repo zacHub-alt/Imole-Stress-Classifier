@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Ìmọ̀lè Stress Classifier{% endblock %}</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+      id="base-css"
+    />
+    <link id="lang-css" rel="stylesheet" href="{% if language == 'yo' %}/static/css/style_yoruba.css{% elif language == 'ig' %}/static/css/style_igbo.css{% elif language == 'ha' %}/static/css/style_hausa.css{% else %}/static/css/style_default.css{% endif %}">
+
+    <style>
+      #music-modal,
+      #spotify-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(255, 255, 255, 0.25);
+        z-index: 10000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(2px);
+      }
+      #music-modal-content,
+      #spotify-modal-content {
+        background: rgba(255, 255, 255, 0.92);
+        border-radius: 18px;
+        box-shadow: 0 4px 24px rgba(44, 62, 80, 0.18);
+        padding: 2.2rem 2.5rem 1.5rem 2.5rem;
+        max-width: 400px;
+        text-align: center;
+      }
+
+      /* Persistent player base styles */
+      #persistent-player {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        padding: 1rem;
+        display: none;
+        align-items: center;
+        cursor: grab;          /* drag cursor */
+        user-select: none;
+        touch-action: none;
+        transition: box-shadow 0.3s ease, left 0.3s ease, top 0.3s ease;
+        overflow: visible;
+      }
+      #persistent-player.dragging {
+        cursor: grabbing;      /* dragging cursor */
+        transition: none !important;
+      }
+      #persistent-player:hover {
+        box-shadow: 0 4px 20px rgba(29, 185, 84, 0.7);
+      }
+      #persistent-player iframe {
+        border-radius: 8px;
+        transition: width 0.3s ease, height 0.3s ease;
+      }
+
+      #persistent-close {
+        background: #eee;
+        color: #333;
+        font-weight: 600;
+        padding: 0.3rem 0.8rem;
+        margin-left: 10px;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      /* Minimized state for partial right visibility */
+      #persistent-player.minimized {
+        width: 60px !important;
+        padding: 0.3rem 0.6rem;
+        border-radius: 12px 0 0 12px;
+        cursor: pointer;
+      }
+      #persistent-player.minimized iframe {
+        width: 48px !important;
+        height: 48px !important;
+        pointer-events: none; /* avoid iframe intercepting clicks */
+      }
+      /* Visible handle (arrow) on minimized */
+      #persistent-player.minimized::after {
+        content: '▶';
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 24px;
+        color: #1db954;
+        user-select: none;
+        pointer-events: none;
+      }
+
+      /* Adjust modal content for smaller screens */
+      @media (max-width: 500px) {
+        #spotify-modal-content {
+          max-width: 90vw;
+          padding: 1rem 1.5rem;
+        }
+      }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Music Consent Modal -->
+    <div id="music-modal">
+      <div id="music-modal-content">
+        <h4 style="color:#1db954; font-weight:700; margin-bottom:1rem;">
+          Did you know?
+        </h4>
+        <p style="color:#333; font-size:1.08rem; margin-bottom:1.2rem;">
+          Research shows that music can help reduce stress, boost mood, and feed
+          the soul. Listening to music during your self-care journey can make the
+          experience more soothing and enjoyable.<br /><br />
+          <b>
+            Would you like to play calming music during your time on Ìmọ̀lẹ̀ stress
+            classifier?
+          </b>
+        </p>
+        <button
+          id="music-yes"
+          style="
+            background: #1db954;
+            color: #fff;
+            font-weight: 600;
+            padding: 0.6rem 2.2rem;
+            border: none;
+            border-radius: 24px;
+            margin-right: 1rem;
+          "
+        >
+          Yes, play music
+        </button>
+        <button
+          id="music-no"
+          style="
+            background: #eee;
+            color: #333;
+            font-weight: 600;
+            padding: 0.6rem 2.2rem;
+            border: none;
+            border-radius: 24px;
+          "
+        >
+          No, thanks
+        </button>
+      </div>
+    </div>
+
+    <!-- Spotify Player Modal -->
+    <div id="spotify-modal">
+      <div id="spotify-modal-content">
+        <h4 style="color:#1db954; font-weight:700; margin-bottom:1rem;">
+          Enjoy Calming Music
+        </h4>
+        <p style="color:#333; font-size:1.08rem; margin-bottom:1.2rem;">
+          Click the play button below to start the Spotify playlist.<br />
+          <span style="font-size: 0.98rem; color: #888"
+            >(You may need to log in to Spotify.)</span
+          >
+        </p>
+        <iframe
+          id="spotify-iframe"
+          src="https://open.spotify.com/embed/playlist/37i9dQZF1DX3rxVfibe1L0?utm_source=generator"
+          width="350"
+          height="100"
+          frameborder="0"
+          allowtransparency="true"
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        ></iframe>
+        <br />
+        <button
+          id="spotify-close"
+          style="
+            background: #eee;
+            color: #333;
+            font-weight: 600;
+            padding: 0.6rem 2.2rem;
+            border: none;
+            border-radius: 24px;
+            margin-top: 1.2rem;
+          "
+        >
+          Close
+        </button>
+      </div>
+    </div>
+
+    <!-- Persistent Spotify Player -->
+    <div id="persistent-player">
+  <iframe
+    id="persistent-iframe"
+    src=""  <!-- Leave src blank; we’ll set it with JS -->
+    width="320"
+    height="80"
+    frameborder="0"
+    allowtransparency="true"
+    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+  ></iframe>
+   <small style="display:block; text-align:center; margin-top:0.5rem; font-style: italic; color:#888;">
+    In God I trust; He takes control.
+  </small>
+  <button id="persistent-close">×</button>
+</div>
+
+<div class="container">
+  {% block content %}{% endblock %}
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const spotifyPlaylists = [
+      "https://open.spotify.com/embed/playlist/5JmZ8iT5KulhyuMwGHHgfY", // Your preferred playlist (plays first)
+      "https://open.spotify.com/embed/playlist/7J7wvcYdNVmE0UrcQymlfX", // New playlist 1
+      "https://open.spotify.com/embed/playlist/36WNjeL0Yle3WKJBXOJsci", // New playlist 2
+      "https://open.spotify.com/embed/playlist/37i9dQZF1DX3rxVfibe1L0", // Calming Music
+      "https://open.spotify.com/embed/playlist/37i9dQZF1DWU0ScTcjJBdj", // Peaceful Piano
+      "https://open.spotify.com/embed/playlist/37i9dQZF1EIcvJrnwQ7nJK", // Additional playlist 1
+      "https://open.spotify.com/embed/playlist/3zXwxNnALQA2jQPpWUBw0K", // Additional playlist 2
+      "https://open.spotify.com/embed/playlist/6YOZIjDIw6SsxdkYYRx8AX", // Additional playlist 3
+      "https://open.spotify.com/embed/playlist/5bLvL3FZ4BhwkS1dPNdlIr"  // Additional playlist 4
+    ];
+
+    // Get the last played index from sessionStorage or default to 0
+    let lastIndex = parseInt(sessionStorage.getItem("lastPlaylistIndex") || "0", 10);
+
+    // Pick current playlist and store next index
+    const selectedPlaylist = spotifyPlaylists[lastIndex % spotifyPlaylists.length];
+    sessionStorage.setItem("lastPlaylistIndex", ((lastIndex + 1) % spotifyPlaylists.length).toString());
+
+    // Update both the persistent and modal iframes
+    const persistentIframe = document.getElementById("persistent-iframe");
+    const modalIframe = document.getElementById("spotify-iframe");
+
+    if (persistentIframe) {
+      persistentIframe.src = selectedPlaylist + "?utm_source=generator";
+    }
+
+    if (modalIframe) {
+      modalIframe.src = selectedPlaylist + "?utm_source=generator";
+    }
+  });
+</script>
+
+</body>
+</html>
+
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        var modal = document.getElementById("music-modal");
+        var spotifyModal = document.getElementById("spotify-modal");
+        var yesBtn = document.getElementById("music-yes");
+        var noBtn = document.getElementById("music-no");
+        var spotifyCloseBtn = document.getElementById("spotify-close");
+        var persistentPlayer = document.getElementById("persistent-player");
+        var persistentClose = document.getElementById("persistent-close");
+
+        // Initially hide all
+        modal.style.display = "none";
+        spotifyModal.style.display = "none";
+        persistentPlayer.style.display = "none";
+
+        function showModal() {
+          modal.style.display = "flex";
+        }
+        function showSpotifyModal() {
+          spotifyModal.style.display = "flex";
+        }
+        function enablePersistentPlayer() {
+          persistentPlayer.style.display = "flex";
+          // On enable, snap fully left by default
+          persistentPlayer.style.left = "20px";
+          persistentPlayer.style.top = "";
+          persistentPlayer.style.bottom = "20px";
+          persistentPlayer.style.right = "auto";
+          persistentPlayer.classList.remove("minimized");
+          // Reset iframe size
+          persistentPlayer.querySelector("iframe").style.width = "320px";
+          persistentPlayer.querySelector("iframe").style.height = "80px";
+        }
+
+        yesBtn.onclick = function () {
+          modal.style.display = "none";
+          showSpotifyModal();
+        };
+
+        noBtn.onclick = function () {
+          modal.style.display = "none";
+          sessionStorage.setItem("musicChoiceMade", "1");
+          sessionStorage.removeItem("musicPlaying");
+        };
+
+        spotifyCloseBtn.onclick = function () {
+          spotifyModal.style.display = "none";
+          enablePersistentPlayer();
+          sessionStorage.setItem("musicPlaying", "1");
+          sessionStorage.setItem("musicChoiceMade", "1");
+        };
+
+        persistentClose.onclick = function (event) {
+          event.stopPropagation(); // Prevent triggering parent click
+          persistentPlayer.style.display = "none";
+          sessionStorage.removeItem("musicPlaying");
+        };
+
+        
+
+        // Open modal when clicking the persistent player (except close button)
+       let isDragging = false;
+// === Spotify iframe click catcher ===
+document.addEventListener("DOMContentLoaded", function () {
+  const iframeWrapper = document.getElementById("iframeWrapper");
+  const iframeClickCatcher = document.getElementById("iframeClickCatcher");
+
+  if (iframeClickCatcher) {
+    iframeClickCatcher.addEventListener("click", function () {
+      spotifyModal.style.display = "flex";
+      persistentPlayer.style.display = "none";
+    });
+  }
+});
+
+
+// Open modal when clicking the persistent player (except close button)
+persistentPlayer.addEventListener("pointerup", function (e) {
+  if (isDragging) return;  // Prevent opening modal if dragging
+  // Open modal and hide persistent player
+  spotifyModal.style.display = "flex";
+  persistentPlayer.style.display = "none";
+});
+
+// Open modal when clicking the iframe inside persistent player
+const playerIframe = persistentPlayer.querySelector("iframe");
+playerIframe.addEventListener("click", function (e) {
+  if (isDragging) return;
+  e.stopPropagation(); // Prevent bubbling to avoid double-trigger
+  spotifyModal.style.display = "flex";
+  persistentPlayer.style.display = "none";
+});
+
+
+
+        // Show UI based on sessionStorage
+        if (sessionStorage.getItem("musicChoiceMade")) {
+          if (sessionStorage.getItem("musicPlaying")) {
+            enablePersistentPlayer();
+          }
+        } else {
+          showModal();
+        }
+
+        // === Dragging Implementation ===
+        let dragTimeout = null;
+        let dragStartX, dragStartY;
+        let playerStartX, playerStartY;
+
+        // For pointer events (mouse and touch)
+        function getClientXY(e) {
+          if (e.touches && e.touches.length > 0) {
+            return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+          } else {
+            return { x: e.clientX, y: e.clientY };
+          }
+        }
+
+        function onPointerDown(e) {
+          if (e.target === persistentClose) return; // don't start drag on close btn
+          e.preventDefault();
+
+          const { x, y } = getClientXY(e);
+          dragStartX = x;
+          dragStartY = y;
+
+          const rect = persistentPlayer.getBoundingClientRect();
+          playerStartX = rect.left;
+          playerStartY = rect.top;
+
+          dragTimeout = setTimeout(() => {
+            isDragging = true;
+            persistentPlayer.classList.add("dragging");
+          }, 500); // 500ms long press to activate drag
+        }
+
+        function onPointerMove(e) {
+          if (!isDragging) return;
+          e.preventDefault();
+
+          const { x, y } = getClientXY(e);
+
+          let deltaX = x - dragStartX;
+          let deltaY = y - dragStartY;
+
+          let newX = playerStartX + deltaX;
+          let newY = playerStartY + deltaY;
+
+          // Constrain vertical within viewport, horizontal no constraint because snapping later
+          const maxY = window.innerHeight - persistentPlayer.offsetHeight - 20;
+          if (newY < 20) newY = 20;
+          if (newY > maxY) newY = maxY;
+
+          persistentPlayer.style.left = newX + "px";
+          persistentPlayer.style.top = newY + "px";
+          persistentPlayer.style.bottom = "auto";
+          persistentPlayer.style.right = "auto";
+        }
+
+        function onPointerUp(e) {
+          clearTimeout(dragTimeout);
+          if (isDragging) {
+            e.preventDefault();
+            isDragging = false;
+            persistentPlayer.classList.remove("dragging");
+
+            const rect = persistentPlayer.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+
+            const centerX = rect.left + rect.width / 2;
+
+            if (centerX < viewportWidth / 2) {
+              // Snap left fully visible
+              persistentPlayer.style.left = "20px";
+              persistentPlayer.style.right = "auto";
+              persistentPlayer.classList.remove("minimized");
+
+              // Reset iframe size in case minimized before
+              persistentPlayer.querySelector("iframe").style.width = "320px";
+              persistentPlayer.querySelector("iframe").style.height = "80px";
+            } else {
+              // Snap right partially visible (minimized)
+              persistentPlayer.classList.add("minimized");
+
+              // Calculate visible width depending on screen size
+              let visibleWidth = 60;
+              const leftPos = viewportWidth - visibleWidth;
+
+              persistentPlayer.style.left = leftPos + "px";
+              persistentPlayer.style.right = "auto";
+
+              // Adjust iframe size in minimized mode
+              persistentPlayer.querySelector("iframe").style.width = "48px";
+              persistentPlayer.querySelector("iframe").style.height = "48px";
+            }
+
+            // Clamp vertical position again after snap
+            let newTop = rect.top;
+            const maxTop = window.innerHeight - rect.height - 20;
+            if (newTop < 20) newTop = 20;
+            if (newTop > maxTop) newTop = maxTop;
+            persistentPlayer.style.top = newTop + "px";
+            persistentPlayer.style.bottom = "auto";
+          } else {
+            clearTimeout(dragTimeout);
+          }
+        }
+
+        persistentPlayer.addEventListener("mousedown", onPointerDown);
+        persistentPlayer.addEventListener("touchstart", onPointerDown);
+
+        window.addEventListener("mousemove", onPointerMove);
+        window.addEventListener("touchmove", onPointerMove, { passive: false });
+
+        window.addEventListener("mouseup", onPointerUp);
+        window.addEventListener("touchend", onPointerUp);
+        window.addEventListener("touchcancel", onPointerUp);
+      });
+    </script>
+</body>
+</html>

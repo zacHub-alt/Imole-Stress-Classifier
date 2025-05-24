@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}{{ ui['result_title'] }}{% endblock %}
+{% block content %}
+<!-- Motif image for language/culture -->
+<div style="text-align:center; margin-bottom:1.5rem;">
+  {% if language == 'yo' %}
+    <img src="/static/css/yoruba_motifs.png" alt="Yoruba Motif"
+         style="width:80px; height:80px; border-radius:50%; box-shadow:0 0 16px #a71d2a; background:#fff;" />
+  {% elif language == 'ig' %}
+    <img src="/static/css/igbo_motifs.png" alt="Igbo Motif"
+         style="width:80px; height:80px; border-radius:50%; box-shadow:0 0 16px #a71d2a; background:#fff;" />
+  {% elif language == 'ha' %}
+    <img src="/static/css/hausa_motifs.png" alt="Hausa Motif"
+         style="width:80px; height:80px; border-radius:50%; box-shadow:0 0 16px #a71d2a; background:#fff;" />
+  {% else %}
+    <img src="/static/css/english_motifs.png" alt="English Motif"
+         style="width:80px; height:80px; border-radius:50%; box-shadow:0 0 16px #a71d2a; background:#fff;" />
+  {% endif %}
+</div>
+
+<h2>{{ ui['your_stress_level'] }} <span class="result">{{ ui['stress_' + stress_level|lower] }}</span></h2>
+<p class="encouragement">{{ encouragement|safe }}</p>
+
+<div class="recommendation-section" style="margin: 2rem 0 1.5rem 0;">
+  {% if not (language == 'en' and '<ul' in encouragement) %}
+    <h4 style="font-weight:600; color:#2c3e50; margin-bottom:0.7rem;">
+      {{ ui['recommendation_title'] if 'recommendation_title' in ui else 'Recommended for you:' }}
+    </h4>
+  {% endif %}
+  <p style="margin-bottom:0.7rem; color:#555;">
+    {% if language == 'en' and '<ul' in encouragement %}
+      {# LLM already provided the resource list in HTML #}
+      {% if remaining_resources and remaining_resources|length > 0 %}
+        <div style="margin-top:1.2rem;">
+          <span style="font-weight:500; color:#2c3e50;">Other helpful resources you might try:</span>
+          <ul class="resource-list" style="margin-bottom:0.7rem;">
+            {% for url, label in remaining_resources %}
+              <li><a href="{{ url }}" target="_blank">{{ label }}</a></li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    {% else %}
+      {{ ui['recommendation_intro'] if 'recommendation_intro' in ui else 'Why not try one of these helpful resources:' }}
+      <ul class="resource-list" style="margin-bottom:0.7rem;">
+      {% if language in ['yo', 'ha', 'ig'] %}
+  <li>
+  <a href="{{ resources.waitlist }}" target="_blank">
+    {{ ui['waitlist_link'] if 'waitlist_link' in ui else 'Join the Ìmọ̀lè waitlist' }}
+  </a>
+</li>
+{% endif %}
+
+        <li>
+          <a href="{{ resources.feedback }}" target="_blank">{{ ui['feedback_link'] }}</a>
+          {{ ui['or'] }}
+          <a href="{{ resources.self_care_game }}" target="_blank">{{ ui['self_care_game_link'] }}</a>
+        </li>
+        <li><a href="{{ resources.spotify }}" target="_blank">{{ ui['spotify_link'] }}</a></li>
+        <li><a href="{{ resources.breathing }}" target="_blank">{{ ui['breathing_link'] }}</a></li>
+        <li><a href="{{ resources.journaling }}" target="_blank">{{ ui['journaling_link'] }}</a></li>
+      </ul>
+    {% endif %}
+  </p>
+</div>
+
+<a href="/" class="btn btn-secondary mt-3">{{ ui['take_again'] }}</a>
+<input type="hidden" id="current-language" value="{{ language }}" />
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

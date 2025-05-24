@@ -1,0 +1,105 @@
+/* Yoruba-inspired theme: rich indigo, gold, white, and orange Aso Oke patterns, coral bead borders, and cultural motifs */
+body {
+    background: linear-gradient(135deg, #1a237e 70%, #fff8e1 100%);
+    font-family: 'Segoe UI', Arial, sans-serif;
+    min-height: 100vh;
+    margin: 0;
+    /* Subtle Aso Oke pattern overlay */
+    background-image:
+        repeating-linear-gradient(45deg, #ffd700 0 8px, transparent 8px 16px),
+        repeating-linear-gradient(-45deg, #ff9800 0 8px, transparent 8px 16px),
+        url('/static/css/yoruba_motifs.png');
+    background-repeat: repeat, repeat, no-repeat;
+    background-position: left top, left top, center 40px;
+    background-size: auto, auto, contain;
+    background-blend-mode: overlay;
+}
+@media (max-width: 800px) {
+    body {
+        background-size: auto, auto, contain;
+        background-position: left top, left top, center 20px;
+    }
+}
+@media (max-width: 500px) {
+    body {
+        background-size: auto, auto, contain;
+        background-position: left top, left top, center 10px;
+    }
+}
+
+.header, .container {
+    background: rgba(255, 252, 240, 0.75); /* More transparent white/cream overlay */
+    border-radius: 18px;
+    box-shadow: 0 4px 24px rgba(26,35,126,0.10);
+    padding: 2rem 2.5rem 1.5rem 2.5rem;
+    margin-top: 2rem;
+    border: 6px double #ffd700;
+    border-top: 12px solid #e53935; /* Coral bead border */
+    border-bottom: 12px solid #fff; /* White bead border */
+    position: relative;
+}
+
+h1, h2 {
+    color: #1a237e;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    letter-spacing: 1px;
+    font-weight: 600;
+    text-shadow: 1px 1px 0 #ffd700, 2px 2px 0 #fff8e1;
+}
+
+.btn-primary, .btn-secondary, .btn {
+    background: transparent !important;
+    color: #1a237e !important;
+    border: 2px solid #ffd700 !important;
+    font-weight: bold;
+    border-radius: 24px;
+    font-size: 1.1rem;
+    padding: 0.6rem 2.2rem;
+    box-shadow: 0 2px 8px rgba(26,35,126,0.08);
+    transition: background 0.2s, color 0.2s, border 0.2s;
+}
+.btn-primary:hover, .btn-secondary:hover, .btn:hover {
+    background: rgba(255,216,115,0.12) !important;
+    color: #e53935 !important;
+    border-color: #e53935 !important;
+}
+
+.form-group label {
+    font-weight: 500;
+    color: #1a237e;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.result {
+    color: #e53935;
+    font-size: 1.3em;
+    margin: 20px 0;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.encouragement {
+    color: #388e3c;
+    font-weight: 500;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.waitlist-link {
+    color: #ff9800;
+    text-decoration: underline;
+}
+
+/* Remove motif from .header/.container pseudo-elements */
+.header::before, .container::before,
+.header::after, .container::after {
+    display: none !important;
+}
+
+/* Kola nut and leaf accents (placeholder for SVG/PNG) */
+.header, .container {
+    box-shadow: 0 0 0 8px rgba(255, 216, 115, 0.08), 0 0 0 16px rgba(56, 142, 60, 0.04);
+}
+
+/* For readability */
+label, .form-label, .btn, .result, .encouragement {
+    text-shadow: 0 1px 0 #fff8e1;
+}

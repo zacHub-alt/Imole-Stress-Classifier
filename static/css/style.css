@@ -1,0 +1,154 @@
+/* Basic styling for the survey and results */
+body {
+    background: #f8f9fa;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+.container {
+    margin-top: 40px;
+    max-width: 600px;
+    background: #fff;
+    padding: 30px 30px 20px 30px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+h1, h2 {
+    color: #2c3e50;
+}
+.btn-primary, .btn-secondary, .btn {
+    background: transparent !important;
+    color: #2c3e50 !important;
+    border: 2px solid #4b7bec !important;
+    font-weight: bold;
+    border-radius: 24px;
+    font-size: 1.1rem;
+    padding: 0.6rem 2.2rem;
+    box-shadow: 0 2px 8px rgba(75,123,236,0.08);
+    transition: background 0.2s, color 0.2s, border 0.2s;
+}
+.btn-primary:hover, .btn-secondary:hover, .btn:hover {
+    background: rgba(75,123,236,0.12) !important;
+    color: #3867d6 !important;
+    border-color: #3867d6 !important;
+}
+.form-group label {
+    font-weight: 500;
+}
+.result {
+    font-size: 1.3em;
+    margin: 20px 0;
+}
+.encouragement {
+    color: #27ae60;
+    font-weight: 500;
+}
+.waitlist-link {
+    color: #4b7bec;
+    text-decoration: underline;
+}
+#spotify-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(255, 255, 255, 0.25);
+  z-index: 10000;
+  display: none;
+
+  /* flexbox centering */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  backdrop-filter: blur(2px);
+}
+
+#spotify-modal-content {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 18px;
+  box-shadow: 0 4px 24px rgba(44, 62, 80, 0.18);
+  padding: 2.2rem 2.5rem 1.5rem 2.5rem;
+  max-width: 400px;
+  width: 90%; /* responsive width */
+  text-align: center;
+  z-index: 10001; /* above modal background */
+}
+/* Responsive Spotify iframe container */
+.responsive-spotify-iframe {
+  position: relative;
+  width: 100%;
+  /* Spotify embed aspect ratio roughly 350x100 -> 3.5:1 ratio */
+  padding-top: 28.5%; /* (100 / 350) * 100 */
+  height: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.responsive-spotify-iframe iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
+  border-radius: 12px;
+}
+
+/* Optional: Smaller persistent player styling */
+.persistent-player-iframe {
+  max-width: 300px; /* Max width */
+  max-height: 80px;
+}
+.persistent-player-iframe iframe {
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
+  border-radius: 12px;
+}
+
+#persistent-player {
+  position: fixed;  /* fixed to viewport */
+  bottom: 20px;
+  left: 20px;
+  width: 320px; /* default width */
+  height: 80px; /* default height */
+  transition: left 0.3s ease, width 0.3s ease, height 0.3s ease;
+  z-index: 9999;
+}
+
+#persistent-player.minimized {
+  width: 60px !important;
+  height: 60px !important;
+}
+
+#iframeClickCatcher {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  z-index: 10;
+  background: transparent;
+  pointer-events: auto;
+}
+#iframeClickCatcher {
+  pointer-events: auto; /* allow clicks */
+}
+
+#persistent-player.dragging #iframeClickCatcher {
+  pointer-events: none; /* disable catcher during drag so drag events reach persistentPlayer */
+}
+
+.signature-quote {
+  font-style: italic;
+  color: rgba(29, 185, 84, 0.4); /* Spotify green tint */
+  font-weight: 500;
+  text-align: center;
+  margin-top: 3rem;
+  font-family: 'Quicksand', sans-serif;
+  transition: color 0.3s ease;
+}
+.signature-quote:hover {
+  color: rgba(29, 185, 84, 0.8);
+}
