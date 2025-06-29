@@ -234,3 +234,5 @@ ig,2025-06-28T18:31:02.483985,,Average,Reduced,High,Not at all,no,no,yes,Severe,
 ig,Average,Reduced,High,Not at all,no,no,yes,Severe,Often,No,Rarely,Moderate,llm
 ha,2025-06-28T18:32:07.299962,,Average,Normal,Low,Focused,no,yes,no,Mild,Often,No,Rarely,Low,llm
 ha,Average,Normal,Low,Focused,no,yes,no,Mild,Often,No,Rarely,Low,llm
+pidgin,2025-06-28T19:33:38.780503,,Poor,Increased,High,Sometimes,yes,yes,yes,Mild,Often,Severe,Daily,Moderate,llm
+pidgin,Poor,Increased,High,Sometimes,yes,yes,yes,Mild,Often,Severe,Daily,Moderate,llm
