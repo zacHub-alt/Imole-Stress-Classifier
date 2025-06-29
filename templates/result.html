@@ -3,7 +3,10 @@
 {% block content %}
 <!-- Motif image for language/culture -->
 <div style="text-align:center; margin-bottom:1.5rem;">
-  {% if language == 'yo' %}
+  {% if language == 'pidgin' %}
+    <img src="/static/css/pidgin_motifs.png" alt="pidgin_motifs"
+         style="width:80px; border-radius:50%; box-shadow:0 0 16px #a71d2a; background-color:#fff;" />
+  {% elif language == 'yo' %}
     <img src="/static/css/yoruba_motifs.png" alt="Yoruba Motif"
          style="width:80px; height:80px; border-radius:50%; box-shadow:0 0 16px #a71d2a; background:#fff;" />
   {% elif language == 'ig' %}
@@ -43,7 +46,7 @@
     {% else %}
       {{ ui['recommendation_intro'] if 'recommendation_intro' in ui else 'Why not try one of these helpful resources:' }}
       <ul class="resource-list" style="margin-bottom:0.7rem;">
-      {% if language in ['yo', 'ha', 'ig'] %}
+      {% if language in [ 'pidgin', 'yo', 'ha', 'ig'] %}
   <li>
   <a href="{{ resources.waitlist }}" target="_blank">
     {{ ui['waitlist_link'] if 'waitlist_link' in ui else 'Join the Ìmọ̀lè waitlist' }}
@@ -67,6 +70,6 @@
 <a href="/" class="btn btn-secondary mt-3">{{ ui['take_again'] }}</a>
 <input type="hidden" id="current-language" value="{{ language }}" />
 {% endblock %}
-
 {% block scripts %}
 {% endblock %}
+

@@ -1,6 +1,29 @@
 import re
 import requests
 import pandas as pd
+import time
+import ast
+import re
+import os
+from dotenv import load_dotenv
+from groq import Groq  # NEW: import Groq client
+
+load_dotenv(override=True)
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+print(f"[DEBUG] Loaded GROQ_API_KEY: {GROQ_API_KEY}")
+
+# In-memory cache for LLM generations (question/options)
+_llm_generation_cache = {}
+_llm_cache_last_cleared = time.time()  # Timestamp of last cache clear
+_LLM_CACHE_CLEAR_INTERVAL = 14 * 24 * 60 * 60  # 2 weeks in seconds
+
+def _maybe_clear_llm_cache():
+    global _llm_generation_cache, _llm_cache_last_cleared
+    now = time.time()
+    if now - _llm_cache_last_cleared > _LLM_CACHE_CLEAR_INTERVAL:
+        print(f"[LLM-CACHE] Clearing LLM generation cache (2 weeks elapsed)")
+        _llm_generation_cache.clear()
+        _llm_cache_last_cleared = now
 
 def validate_responses(answers):
     """Check for missing or invalid answers."""
@@ -35,69 +58,81 @@ questions = {
         "en": ["Average", "Good", "Poor"],
         "yo": ["Aropin", "Dara", "Buburu"],
         "ig": ["Nkezi", "Oma", "Njọ"],
-        "ha": ["Matsakaici", "Mai kyau", "Mara kyau"]
+        "ha": ["Matsakaici", "Mai kyau", "Mara kyau"],
+        "pidgin": ["Normal", "Beta", "Bad"]
     },
     "appetite": {
         "en": ["Increased", "Normal", "Reduced"],
         "yo": [" pọ si", " deede", " dinku"],
         "ig": ["Belatara", "Nkịtị", "Belatara ala"],
-        "ha": ["Ya karu", "Na yau da kullum", "Ya ragu"]
+        "ha": ["Ya karu", "Na yau da kullum", "Ya ragu"],
+        "pidgin": ["Don dey chop pass", "Normal", "No too dey chop"]
     },
     "energy_level": {
         "en": ["High", "Low", "Moderate"],
         "yo": ["Giga", "Kekere", "Aropin"],
         "ig": ["Elu", "Ala", "Nkezi"],
-        "ha": ["Mai yawa", "Kaɗan", "Matsakaici"]
+        "ha": ["Mai yawa", "Kaɗan", "Matsakaici"],
+        "pidgin": ["Plenty energy", "Small energy", "Just dey"]
     },
     "concentration": {
         "en": ["Focused", "Not at all", "Sometimes"],
         "yo": ["Idojukọ", "Rara", "Nigbakan"],
         "ig": ["Lekwasị anya", "Mba", "Mgbe ụfọdụ"],
-        "ha": ["Mai da hankali", "A'a", "Wani lokaci"]
+        "ha": ["Mai da hankali", "A'a", "Wani lokaci"],
+        "pidgin": ["I fit focus", "I no fit at all", "Sometimes sha"]
     },
     "mood_swings": {
         "en": ["yes", "no"],
         "yo": ["bẹẹni", "rara"],
         "ig": ["ee", "mba"],
-        "ha": ["eh", "a'a"]
+        "ha": ["eh", "a'a"],
+        "pidgin": ["Yes", "No"]
     },
     "social_withdrawal": {
         "en": ["yes", "no"],
         "yo": ["bẹẹni", "rara"],
         "ig": ["ee", "mba"],
-        "ha": ["eh", "a'a"]
+        "ha": ["eh", "a'a"],
+        "pidgin": ["Yes", "No"]
     },
     "negative_thoughts": {
         "en": ["yes", "no"],
         "yo": ["bẹẹni", "rara"],
         "ig": ["ee", "mba"],
-        "ha": ["eh", "a'a"]
+        "ha": ["eh", "a'a"],
+        "pidgin": ["Yes", "No"]
     },
     "academic_pressure": {
         "en": ["Mild", "Severe", "nan"],
         "yo": ["Fifinra", "Tobi", "ko si"],
         "ig": ["Nfechaa", "Ike ukwuu", "enweghị"],
-        "ha": ["Mai sauƙi", "Mai tsanani", "babu"]
+        "ha": ["Mai sauƙi", "Mai tsanani", "babu"],
+        "pidgin": ["Small wahala", "Plenty wahala", "Nothing"]
     },
     "family_conflict": {
         "en": ["No", "Often", "Sometimes"],
         "yo": ["Rara", "Nigbagbogbo", "Nigbakan"],
         "ig": ["Mba", "Ugboro ugboro", "Mgbe ụfọdụ"],
-        "ha": ["A'a", "A kai a kai", "Wani lokaci"]
+        "ha": ["A'a", "A kai a kai", "Wani lokaci"],
+        "pidgin": ["No wahala", "E dey happen", "E dey sometimes"]
     },
     "financial_stress": {
         "en": ["Mild", "No", "Severe"],
         "yo": ["Fifinra", "Rara", "Tobi"],
         "ig": ["Nfechaa", "Mba", "Ike ukwuu"],
-        "ha": ["Mai sauƙi", "A'a", "Mai tsanani"]
+        "ha": ["Mai sauƙi", "A'a", "Mai tsanani"],
+        "pidgin": ["Small gbege", "No stress", "Big wahala"]
     },
     "religious_practice": {
         "en": ["Daily", "Never", "Rarely", "Weekly"],
-        "yo": ["Lojojumo", "Rara", "Kòpọ̀", "Lọsẹ kan"],
-        "ig": ["Kwa ụbọchị", "Mba", "Mgbe ụfọdụ", "Oge izu"] ,
-        "ha": ["Kullum", "A'a", "Wani lokaci", "Sau ɗaya a mako"]
+        "yo": ["Lojojumo", "Rara", "ṣọ́wọn", "Lọsẹ kan"],
+        "ig": ["Kwa ụbọchị", "Mba", "Mgbe ụfọdụ", "Oge izu"],
+        "ha": ["Kullum", "A'a", "Wani lokaci", "Sau ɗaya a mako"],
+        "pidgin": ["Everyday", "I no dey go", "Once in a while", "Every week"]
     }
 }
+
 
 encoding_maps = {
     "sleep_quality": {"Average": 0, "Good": 1, "Poor": 2},
@@ -113,41 +148,381 @@ encoding_maps = {
     "religious_practice": {"Daily": 0, "Never": 1, "Rarely": 2, "Weekly": 3}
 }
 
+# User-friendly static options for each feature
+user_friendly_options_pidgin = {
+    "sleep_quality": ["I sleep well well", "Na manage", "I no sleep well"],
+    "appetite": ["I dey chop pass", "E still dey normal", "I no too dey chop"],
+    "energy_level": ["Plenty energy dey", "Small energy dey", "I just dey"],
+    "concentration": ["I fit focus well", "Sometimes I dey lose focus", "Focus no dey at all"],
+    "mood_swings": ["Yes, e dey change well well", "No, e no dey really happen"],
+    "social_withdrawal": ["I just dey my own", "me dey flow with everyone oo"],
+    "negative_thoughts": ["I dey think bad things more", "No ooo"],
+    "academic_pressure": ["small small but i fit manage", "yes oo, e too much", "Everything dey calm"],
+    "family_conflict": ["Everything calm", "Plenty wahala", "Wahala sometimes"],
+    "financial_stress": ["Small gbege", "No wahala", "Plenty wahala"],
+    "religious_practice": ["Everyday I dey do am", "I no dey do dat kind thing", "Once in a while", "Once every week"]
+}
+option_map_to_ml_pidgin = {
+    "sleep_quality": {
+        "I sleep well well": "Good",
+        "Na manage": "Average",
+        "I no sleep well": "Poor"
+    },
+    "appetite": {
+        "I dey chop pass": "Increased",
+        "E still dey normal": "Normal",
+        "I no too dey chop": "Reduced"
+    },
+    "energy_level": {
+        "Plenty energy dey": "High",
+        "Small energy dey": "Moderate",
+        "I just dey": "Low"
+    },
+    "concentration": {
+        "I fit focus well": "Focused",
+        "Sometimes I dey lose focus": "Sometimes",
+        "Focus no dey at all": "Not at all"
+    },
+    "mood_swings": {
+        "Yes, e dey change well well": "yes",
+        "No, e no dey really happen": "no"
+    },
+    "social_withdrawal": {
+        "I just dey my own": "yes",
+        "me dey flow with everyone oo": "no"
+    },
+    "negative_thoughts": {
+        "I dey think bad things more": "yes",
+        "No ooo": "no"
+    },
+    "academic_pressure": {
+        "small small but i fit manage": "Mild",
+        "yes oo, e too much": "Severe",
+        "Everything dey calm": "nan"
+    },
+    "family_conflict": {
+        "Everything calm": "No",
+        "Plenty wahala": "Often",
+        "Wahala sometimes": "Sometimes"
+    },
+    "financial_stress": {
+        "Small gbege": "Mild",
+        "No wahala": "No",
+        "Plenty wahala": "Severe"
+    },
+    "religious_practice": {
+        "Everyday I dey do am": "Daily",
+        "I no dey do dat kind thing": "Never",
+        "Once in a while": "Rarely",
+        "Once every week": "Weekly"
+    }
+}
+
+user_friendly_options = {
+    "sleep_quality": ["Very well", "Okay", "Not well"],
+    "appetite": ["Eating more", "No change", "Eating less"],
+    "energy_level": ["Lots of energy", "Some energy", "Very tired"],
+    "concentration": ["Easy to focus", "Sometimes hard", "Very hard to focus"],
+    "mood_swings": ["Yes, a lot", "No, not really"],
+    "social_withdrawal": ["Spending less time", "No change"],
+    "negative_thoughts": ["More than usual", "No change"],
+    "academic_pressure": ["A little stressed", "Very stressed", "Not stressed"],
+    "family_conflict": ["No arguments", "A lot of arguments", "Sometimes arguments"],
+    "financial_stress": ["A little worried", "Not worried", "Very worried"],
+    "religious_practice": ["Every day", "Never", "Rarely", "Once a week"]
+}
+# Mapping from user-friendly options to ML model options
+option_map_to_ml = {
+    "sleep_quality": {
+        "Very well": "Good",
+        "Okay": "Average",
+        "Not well": "Poor"
+    },
+    "appetite": {
+        "Eating more": "Increased",
+        "No change": "Normal",
+        "Eating less": "Reduced"
+    },
+    "energy_level": {
+        "Lots of energy": "High",
+        "Some energy": "Moderate",
+        "Very tired": "Low"
+    },
+    "concentration": {
+        "Easy to focus": "Focused",
+        "Sometimes hard": "Sometimes",
+        "Very hard to focus": "Not at all"
+    },
+    "mood_swings": {
+        "Yes, a lot": "yes",
+        "No, not really": "no"
+    },
+    "social_withdrawal": {
+        "Spending less time": "yes",
+        "No change": "no"
+    },
+    "negative_thoughts": {
+        "More than usual": "yes",
+        "No change": "no"
+    },
+    "academic_pressure": {
+        "A little stressed": "Mild",
+        "Very stressed": "Severe",
+        "Not stressed": "nan"
+    },
+    "family_conflict": {
+        "No arguments": "No",
+        "A lot of arguments": "Often",
+        "Sometimes arguments": "Sometimes"
+    },
+    "financial_stress": {
+        "A little worried": "Mild",
+        "Not worried": "No",
+        "Very worried": "Severe"
+    },
+    "religious_practice": {
+        "Every day": "Daily",
+        "Never": "Never",
+        "Rarely": "Rarely",
+        "Once a week": "Weekly"
+    }
+}
+
+def _llm_cache_key(kind, feature, style, language):
+    return f"{kind}|{feature}|{style}|{language}"
+
 def generate_dynamic_question(feature, options, language=None, style=None):
-    # Base prompt
-    base = f"You are a helpful assistant for a mental health survey."
-    # Style prompt
+    _maybe_clear_llm_cache()
+    # Only use LLM for English if style is exactly 'genalpha' or 'genz'
+    if (language is None or language == 'en') and style not in ['genalpha', 'genz']:
+        # Always use static question for default English style or any non-genz/genalpha style
+        return static_questions.get(feature, "How would you answer this question?")
+    key = _llm_cache_key('question', feature, style, language)
+    if key in _llm_generation_cache:
+        return _llm_generation_cache[key]
+    # Use the static question as the base for LLM style tuning
+    static_q = static_questions.get(feature, f"How would you answer this question about {feature.replace('_', ' ')}?")
     style_prompt = ""
     if style == 'genalpha':
-        style_prompt = " Use Gen Alpha style: super short, playful, emoji-rich, and kid-friendly."
+        style_prompt = "Rewrite the following question in Gen Alpha style: super short, playful, emoji-rich, and kid-friendly. Use emojis and keep it fun."
     elif style == 'genz':
-        style_prompt = " Use Gen Z style: casual, fun, internet slang, and some emojis."
-    elif style == 'millennial':
-        style_prompt = " Use Millennial style: friendly, slightly nostalgic, relatable, and a bit witty."
-    # Force English for LLM if language is None or 'en'
-    lang_prompt = " Write ONLY the question text in English (no preamble, no explanation, no translation, no extra formatting, and do NOT list the options)."
-    # Feature prompt
-    feature_prompt = f" Ask about '{feature.replace('_', ' ')}'. The question should encourage the user to pick one of the options below."
-    prompt = base + style_prompt + lang_prompt + feature_prompt
+        style_prompt = "Rewrite the following question in Gen Z style: casual, fun, internet slang, and little emojis. Use short sentences and relatable language."
+    else:
+        style_prompt = "Rewrite the following question in a simple, friendly, and encouraging style for teens."
+    prompt = f"{style_prompt}\n\nQuestion: {static_q}\n\nRespond with only the rewritten question, no preamble, no explanation, no extra formatting, and do NOT list the options. The question must be a single sentence."
     payload = {
         "model": "meta-llama/llama-4-scout-17b-16e-instruct",
         "messages": [{"role": "user", "content": prompt}]
     }
     headers = {
         "Content-Type": "application/json",
-        "Authorization": "Bearer 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"
+        "Authorization": f"Bearer {GROQ_API_KEY}"
     }
-    import requests
     response = requests.post("https://api.groq.com/openai/v1/chat/completions",
                              json=payload, headers=headers)
     if response.status_code == 200:
         resp_json = response.json()
         question_text = resp_json['choices'][0]['message']['content'].strip()
+        # DEBUG: Log LLM question generation for all English styles
+        if language == 'en' or language is None:
+            print(f"[LLM-DEBUG][QUESTION] style={style} feature={feature} -> {question_text}")
+        # Truncate to first sentence if too long
+        if '.' in question_text:
+            question_text = question_text.split('.', 1)[0].strip() + '.'
+        # Language check: fallback if not English for English styles
+        if (language == 'en' or language is None) and not re.search(r'[a-zA-Z]', question_text):
+            print(f"[LLM-WARN][QUESTION] Non-English output for style={style} feature={feature}, falling back to static.")
+            return static_q  # fallback to static question
+        _llm_generation_cache[key] = question_text
         return question_text
+    elif response.status_code == 429:
+        print(f"[LLM-RETRY][QUESTION] Rate limit hit, retrying after 2s...")
+        time.sleep(2)
+        return generate_dynamic_question(feature, options, language, style)
     else:
         print(f"LLM API error: {response.status_code} {response.text}")
-        return None
+        return static_q  # fallback to static question
 
+
+def generate_dynamic_options(feature, options, language=None, style=None):
+    """Generate and clean dynamic options for a survey question using LLM, with robust flattening and no merging for English Gen Z/Alpha only. For Gen Z/Alpha, tune the static options to the style, but always map back to ML options via option_map_to_ml."""
+    _maybe_clear_llm_cache()
+    # Only use LLM for English if style is exactly 'genalpha' or 'genz'
+    if (language is None or language == 'en') and style not in ['genalpha', 'genz']:
+        # Always use static options for default English style or any non-genz/genalpha style
+        cleaned_opts = [clean_option(o) for o in (options if isinstance(options, list) else []) if clean_option(o)]
+        print(f"[DEBUG][OPTIONS][STATIC-EN-DEFAULT] feature={feature} style={style} lang={language} -> {cleaned_opts}")
+        return cleaned_opts
+    key = _llm_cache_key('options', feature, style, language)
+    if key in _llm_generation_cache:
+        opts = _llm_generation_cache[key]
+        cleaned_opts = [clean_option(o) for o in opts if clean_option(o)]
+        if len(cleaned_opts) < 2:
+            return cleaned_opts
+        print(f"[DEBUG][OPTIONS][CACHE] feature={feature} style={style} lang={language} -> {cleaned_opts}")
+        return cleaned_opts
+    # Use the static options as the base for LLM style tuning
+    static_opts = user_friendly_options.get(feature, options if isinstance(options, list) else [])
+    style_prompt = ""
+    if style == 'genalpha':
+        style_prompt = "Rewrite the following answer options in Gen Alpha style: super short, playful, emoji-rich, and kid-friendly. Use emojis and keep it fun."
+    elif style == 'genz':
+        style_prompt = "Rewrite the following answer options in Gen Z style: casual, fun, internet slang, and little emojis. Use short sentences and relatable language."
+    else:
+        style_prompt = "Rewrite the following answer options in a simple, friendly, and encouraging style for teens."
+    prompt = f"{style_prompt}\n\nOptions: {static_opts}\n\nRespond with only the rewritten options as a Python list of strings, no preamble, no explanation, no extra formatting, and do NOT include the question. Each list element must be a single, distinct option."
+    payload = {
+        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "messages": [{"role": "user", "content": prompt}]
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GROQ_API_KEY}"
+    }
+    response = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                             json=payload, headers=headers)
+    if response.status_code == 200:
+        resp_json = response.json()
+        content = resp_json['choices'][0]['message']['content'].strip()
+        # Remove code block markers if present
+        content_clean = re.sub(r'^```[a-zA-Z]*', '', content).strip()
+        content_clean = re.sub(r'```$', '', content_clean).strip()
+        # Try to extract a Python list from the response using regex
+        match = re.search(r'\[(.*?)\]', content_clean, re.DOTALL)
+        options_list = None
+        if match:
+            list_str = '[' + match.group(1) + ']'
+            try:
+                options_list = eval(list_str)
+            except Exception:
+                pass
+        if not options_list:
+            try:
+                options_list = eval(content_clean)
+            except Exception:
+                pass
+        # --- Improved: flatten and parse if the list looks like a split stringified list ---
+        if options_list and isinstance(options_list, list):
+            # If the list is a single string that looks like a list, or a list of fragments, join and eval
+            if all(isinstance(opt, str) for opt in options_list):
+                joined = ','.join(options_list)
+                try:
+                    parsed = eval(joined)
+                    if isinstance(parsed, list):
+                        options_list = parsed
+                except Exception:
+                    # fallback to previous flattening
+                    flat = []
+                    for opt in options_list:
+                        if isinstance(opt, str) and opt.strip().startswith('[') and opt.strip().endswith(']'):
+                            try:
+                                inner = eval(opt)
+                                if isinstance(inner, list):
+                                    flat.extend(inner)
+                                else:
+                                    flat.append(opt)
+                            except Exception:
+                                flat.append(opt)
+                        else:
+                            flat.append(opt)
+                    options_list = flat
+        print(f"[DEBUG][OPTIONS][LLM][TYPE] feature={feature} style={style} lang={language} -> {type(options_list)}")
+        if options_list and isinstance(options_list, list):
+            cleaned = [clean_option(opt) for opt in options_list if clean_option(opt)]
+            if len(cleaned) < 2:
+                return cleaned
+            print(f"[DEBUG][OPTIONS][LLM][FINAL] feature={feature} style={style} lang={language} -> {cleaned}")
+            _llm_generation_cache[key] = cleaned
+            return cleaned
+        cleaned_opts = [clean_option(o) for o in (static_opts if isinstance(static_opts, list) else [content]) if clean_option(o)]
+        print(f"[DEBUG][OPTIONS][STATIC] feature={feature} style={style} lang={language} -> {cleaned_opts}")
+        _llm_generation_cache[key] = static_opts if isinstance(static_opts, list) else [content]
+        return cleaned_opts
+    elif response.status_code == 429:
+        import time
+        time.sleep(2)
+        return generate_dynamic_options(feature, options, language, style)
+    else:
+        cleaned_opts = [clean_option(o) for o in (static_opts if isinstance(static_opts, list) else []) if clean_option(o)]
+        print(f"[DEBUG][OPTIONS][ERROR] feature={feature} style={style} lang={language} -> {cleaned_opts}")
+        return cleaned_opts
+
+def sanitize_answer_value(val):
+    """Sanitize a single answer value: if it's a stringified list, extract the first string element; else return as string."""
+    import ast
+    if isinstance(val, list):
+        return str(val[0]) if val else ''
+    if isinstance(val, str):
+        s = val.strip()
+        # Try to parse as a Python list
+        try:
+            parsed = ast.literal_eval(s)
+            if isinstance(parsed, list) and parsed:
+                for v in parsed:
+                    if isinstance(v, str):
+                        return v
+                return str(parsed[0])
+        except Exception:
+            pass
+        # Try to split by common delimiters if it looks like a list
+        if s.startswith('[') and s.endswith(']'):
+            s = s[1:-1]
+        for delim in [',', ';', '|', '\n']:
+            parts = [p.strip(" ' \"") for p in s.split(delim)]
+            if len(parts) > 1 and all(parts):
+                return parts[0]
+        # Fallback: just return as string
+        return s
+    return str(val)
+
+def map_user_answers_to_ml(answers, feature=None, style=None, llm_options=None):
+    """
+    Map user-friendly or LLM-tuned answers to ML model options for encoding.
+    If LLM-tuned options are used (Gen Z/Alpha), map back to the original ML options using option_map_to_ml.
+    [DEBUG 4] print statements added to trace mapping logic.
+    """
+    mapped = {}
+    for feat, value in answers.items():
+        # [DEBUG 4] Start mapping for this feature
+        print(f"[DEBUG 4][MAPPING] Feature: {feat}, User Value: {value}")
+        # If llm_options is provided and this feature is present, try to map by index
+        if llm_options and feat in llm_options:
+            try:
+                idx = llm_options[feat].index(value)
+                orig_opt = user_friendly_options[feat][idx]
+                ml_opt = option_map_to_ml[feat][orig_opt]
+                mapped[feat] = ml_opt
+                print(f"[DEBUG 4][LLM-INDEX] {feat}: LLM option '{value}' at idx {idx} -> user option '{orig_opt}' -> ML option '{ml_opt}'")
+                continue
+            except Exception as e:
+                print(f"[DEBUG 4][LLM-INDEX-ERROR] {feat}: Could not map LLM option '{value}' by index. Error: {e}")
+        # Fallback to normal mapping
+        if feat in option_map_to_ml and value in option_map_to_ml[feat]:
+            ml_opt = option_map_to_ml[feat][value]
+            mapped[feat] = ml_opt
+            print(f"[DEBUG 4][DIRECT] {feat}: User value '{value}' -> ML option '{ml_opt}'")
+        else:
+            mapped[feat] = value  # fallback: use as-is
+            print(f"[DEBUG 4][FALLBACK] {feat}: Using value as-is: '{value}'")
+    return mapped
+
+def map_users_answers_to_ml(answers): 
+    """
+    Map Pidgin user answers to ML model options for saving/retraining.
+    Replicates the English mapping logic: direct dictionary lookup from user-facing options to ML options.
+    """
+    mapped = {}
+    for feat, value in answers.items():
+        print(f"[DEBUG 2][MAPPING] Feature: {feat}, User Value: {value}")
+        if feat in option_map_to_ml_pidgin and value in option_map_to_ml_pidgin[feat]:
+            ml_opt = option_map_to_ml_pidgin[feat][value]
+            mapped[feat] = ml_opt
+            print(f"[DEBUG 2][DIRECT] {feat}: User value '{value}' -> ML option '{ml_opt}'")
+        else:
+            mapped[feat] = value  # fallback: use as-is
+            print(f"[DEBUG 2][FALLBACK] {feat}: Using value as-is: '{value}'")
+    return mapped
+    
 def encode_answers(answers):
     return {f: encoding_maps[f].get(v, 0) for f, v in answers.items()}
 
@@ -165,28 +540,23 @@ Based on the above answers, please confirm this prediction or provide your own s
 
 Respond only with one word: Low, Moderate, or High.
 """
-    payload = {
-        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
-        "messages": [{"role": "user", "content": prompt}]
-    }
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer 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"
-    }
-    response = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                             json=payload, headers=headers)
-    if response.status_code == 200:
-        resp_json = response.json()
-        llm_response = resp_json['choices'][0]['message']['content'].strip()
+    client = Groq()
+    try:
+        completion = client.chat.completions.create(
+            model="qwen/qwen3-32b",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        llm_response = completion.choices[0].message.content.strip()
         llm_response = llm_response.rstrip('.!?').capitalize()
         if llm_response in ["Low", "Moderate", "High"]:
             return llm_response
         else:
             print(f"Unexpected LLM response: {llm_response}")
             return None
-    else:
-        print(f"LLM API error: {response.status_code} {response.text}")
+    except Exception as e:
+        print(f"[LLM-REASONER-EXCEPTION] {e}")
         return None
+
 
 def call_llm_reasoner_with_reasoning(user_answers, ml_prediction):
     answers_str = "\n".join(f"- {k.replace('_', ' ').title()}: {v}" for k, v in user_answers.items())
@@ -198,45 +568,56 @@ Here are the user's answers to a stress-related questionnaire:
 
 The machine learning model predicted the user's stress level as: {ml_prediction}.
 
-First, state your reasoning in 2-3 sentences (in English, even if the survey is in another language). Then, on a new line, respond only with one word: Low, Moderate, or High.
+First, state your reasoning in 2-3 sentences (in English, even if the survey is in another language). Then, on a new line by itself, respond only with one word: Low, Moderate, or High.
 """
-    payload = {
-        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
-        "messages": [{"role": "user", "content": prompt}]
-    }
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer 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"
-    }
-    response = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                             json=payload, headers=headers)
-    if response.status_code == 200:
-        resp_json = response.json()
-        content = resp_json['choices'][0]['message']['content'].strip()
-        # Split reasoning and prediction
+    client = Groq()
+    try:
+        completion = client.chat.completions.create(
+            model="qwen/qwen3-32b",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        content = completion.choices[0].message.content.strip()
         lines = content.splitlines()
         reasoning = ""
         pred = None
         for line in lines:
-            if line.strip().capitalize() in ["Low", "Moderate", "High"]:
-                pred = line.strip().capitalize()
+            clean = line.strip().rstrip('.!?').capitalize()
+            if clean in ["Low", "Moderate", "High"]:
+                pred = clean
                 break
             reasoning += line.strip() + " "
         reasoning = reasoning.strip()
+        if not pred:
+            import re
+            match = re.search(r"(Low|Moderate|High)", content, re.IGNORECASE)
+            if match:
+                pred = match.group(1).capitalize()
         return pred, reasoning
-    else:
-        print(f"LLM API error: {response.status_code} {response.text}")
+    except Exception as e:
+        print(f"[LLM-REASONER-EXCEPTION] {e}")
         return None, None
 
 def final_decision(ml_pred, ml_confidence, llm_pred, llm_confidence):
+    """
+    Combine ML and LLM predictions robustly:
+    - If both agree, return that prediction.
+    - If they disagree, return the one with higher confidence.
+    - If confidence is equal, return the higher (more conservative) stress level.
+    """
     stress_score_map = {"Low": 0, "Moderate": 1, "High": 2}
     inverse_map = {v: k for k, v in stress_score_map.items()}
     ml_score = stress_score_map.get(ml_pred, 1)
     llm_score = stress_score_map.get(llm_pred, 1)
-    combined_score = ml_confidence * ml_score + llm_confidence * llm_score
-    final_score = round(combined_score)
-    final_prediction = inverse_map.get(final_score, "Moderate")
-    return final_prediction
+
+    if ml_pred == llm_pred:
+        return ml_pred
+    if ml_confidence > llm_confidence:
+        return ml_pred
+    if llm_confidence > ml_confidence:
+        return llm_pred
+    # If confidence is equal, return the higher stress level
+    final_score = max(ml_score, llm_score)
+    return inverse_map.get(final_score, "Moderate")
 
 def show_personalized_invite(prediction):
     waitlist_url = "https://lucida-waitlist.vercel.app/" #https://imole.app/waitlist
@@ -256,6 +637,34 @@ def show_personalized_invite(prediction):
     }
 
 UI_TRANSLATIONS = {
+    "pidgin": {
+        "welcome": "Welcome to Ìmọ̀lè Stress Checker. Dis tool go help you sabi how your stress level be and give you small encouragement. Abeg answer the questions well-well. Wetin you talk no be for public, e go help us support you better.",
+        "select_language": "Choose your language",
+        "select_option": "Choose one...",
+        "submit": "Submit am",
+        "clear": "Clear everything",
+        "result_title": "Your Stress Result",
+        "your_stress_level": "Your stress level be:",
+        "encouragement_low": "You dey do well! Keep dey take care of yourself.",
+        "encouragement_moderate": "Try rest small and talk to person wey you trust.",
+        "encouragement_high": "Ey dey okay make you find help. You no dey alone. Try reach out make you get support.",
+        "waitlist_link": "Join Ìmọ̀lè waitlist",
+        "feedback_link": "Tell us wetin you think",
+        "or": "or",
+        "self_care_game_link": "try one small self-care game",
+        "spotify_link": "Calm body with this music",
+        "breathing_link": "Try small breathing exercise",
+        "journaling_link": "You fe start with just one small writing",
+        "take_again": "Do am again",
+        "stress_low": "Small",
+        "stress_moderate": "Middle",
+        "stress_high": "Plenty",
+        "next": "Next",
+        "back": "Back",
+        "llm_error": "Sorry, the sharp-brain service no dey work for now. This result na from the main tool.",
+        "recommendation_title": "Wetin we suggest for you:",
+        "recommendation_intro": "Try any of these things wey fit help you:"
+    },
     "en": {
         "welcome": "Welcome to the Ìmọ̀lè Stress Classifier. This tool helps you understand your current stress level and offers gentle encouragement. Please answer the questions as honestly as possible. Your responses are confidential and will help us provide better support for your well-being.",
         "select_language": "Select Language",
@@ -301,7 +710,7 @@ UI_TRANSLATIONS = {
         "self_care_game_link": "ṣe ere itoju ara",
         "spotify_link": "Sinmi pẹlu akojọ orin Spotify",
         "breathing_link": "Ṣe adaṣe mimi",
-        "journaling_link": "Bẹrẹ iwe iranti pẹlu ìtànkan",
+        "journaling_link": "Bẹrẹ iwe ìranti pẹ̀lú ìtọ́kasi kan ṣoṣo",
         "take_again": "Ṣe Idanwo Lẹẹkansi",
         "stress_low": "Kekere",
         "stress_moderate": "Aarin",
@@ -370,108 +779,235 @@ UI_TRANSLATIONS = {
     }
 }
 
-def generate_dynamic_options(feature, options, language=None, style=None):
-    """Call LLM to generate answer options for a survey question."""
-    import re
-    base = f"You are a helpful assistant for a mental health survey."
-    style_prompt = ""
-    if style == 'genalpha':
-        style_prompt = " Use Gen Alpha style: super short, playful, emoji-rich, and kid-friendly."
-    elif style == 'genz':
-        style_prompt = " Use Gen Z style: casual, fun, internet slang, and some emojis."
-    elif style == 'millennial':
-        style_prompt = " Use Millennial style: friendly, slightly nostalgic, relatable, and a bit witty."
-    # Language prompt
-    if language and language != 'en':
-        lang_prompt = f" Write ONLY the answer options in {language.title()} as a Python list (no preamble, no explanation, no translation, no extra formatting, and do NOT include the question)."
-    else:
-        lang_prompt = " Write ONLY the answer options as a Python list (no preamble, no explanation, no translation, no extra formatting, and do NOT include the question)."
-    feature_prompt = f" For the question about '{feature.replace('_', ' ')}', suggest 3-5 culturally and age-appropriate answer options."
-    prompt = base + style_prompt + lang_prompt + feature_prompt
-    payload = {
-        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
-        "messages": [{"role": "user", "content": prompt}]
-    }
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer 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"
-    }
-    import requests
-    response = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                             json=payload, headers=headers)
-    if response.status_code == 200:
-        resp_json = response.json()
-        content = resp_json['choices'][0]['message']['content'].strip()
-        # Try to extract a Python list from the response using regex
-        match = re.search(r'\[(.*?)\]', content, re.DOTALL)
-        if match:
-            list_str = '[' + match.group(1) + ']'
-            try:
-                options = eval(list_str)
-                if isinstance(options, list):
-                    return [str(opt).strip() for opt in options]
-            except Exception:
-                pass
-        # Fallback: try eval on the whole content
-        try:
-            options = eval(content)
-            if isinstance(options, list):
-                return [str(opt).strip() for opt in options]
-        except Exception:
-            pass
-        # Fallback: return static options
-        return options if isinstance(options, list) else [content]
-    else:
-        print(f"LLM API error (options): {response.status_code} {response.text}")
-        return options  # fallback to static options
+# --- Static fallback questions for each feature (used for default English style and as fallback) ---
+static_questions = {
+    "sleep_quality": "How well did you sleep recently?",
+    "appetite": "How has your appetite been lately?",
+    "energy_level": "How much energy have you had?",
+    "concentration": "How easy is it to focus on tasks?",
+    "mood_swings": "Have you experienced mood swings?",
+    "social_withdrawal": "Have you been spending less time with others?",
+    "negative_thoughts": "Have you had more negative thoughts than usual?",
+    "academic_pressure": "How stressed do you feel about school or studies?",
+    "family_conflict": "Have there been arguments or conflicts at home?",
+    "financial_stress": "Are you worried about money or finances?",
+    "religious_practice": "How often do you participate in religious or spiritual activities?"
+}
 
-def generate_personalized_result(encouragement_level, resources, answers=None, ml_pred=None, llm_pred=None, style=None):
-    """Generate a personalized encouragement and resource section for the result page using the LLM."""
-    base = "You are a supportive mental health assistant."
-    style_prompt = ""
-    if style == 'genalpha':
-        style_prompt = " Use Gen Alpha style: playful, emoji-rich, and kid-friendly."
-    elif style == 'genz':
-        style_prompt = " Use Gen Z style: casual, fun, internet slang, and some emojis."
-    elif style == 'millennial':
-        style_prompt = " Use Millennial style: friendly, slightly nostalgic, relatable, and a bit witty."
-    # Compose resource links as HTML for the LLM to use directly
-    resource_html = '''<ul class="resource-list" style="margin-bottom:0.7rem;">
-    <li><a class="waitlist-link" href=\"{waitlist}\" target=\"_blank\">Join the Ìmọ̀lè waitlist</a></li>
-    <li><a href=\"{spotify}\" target=\"_blank\">Relax with the Spotify playlist</a></li>
-    <li><a href=\"{breathing}\" target=\"_blank\">Try a breathing exercise</a></li>
-    <li><a href=\"{self_care_game}\" target=\"_blank\">Try the self-care game</a></li>
-    <li><a href=\"{feedback}\" target=\"_blank\">Share your thoughts</a> or <a href=\"{journaling}\" target=\"_blank\">Start a journaling prompt</a></li>
-    </ul>'''.format(
-        waitlist=resources.get('waitlist'),
-        feedback=resources.get('feedback'),
-        self_care_game=resources.get('self_care_game'),
-        spotify=resources.get('spotify'),
-        breathing=resources.get('breathing'),
-        journaling=resources.get('journaling')
+def clean_option(opt):
+    """Clean a single option string: remove extra whitespace, punctuation, and normalize casing."""
+    if not isinstance(opt, str):
+        return str(opt)
+    s = opt.strip()
+    # Remove leading/trailing punctuation and whitespace
+    s = re.sub(r'^[\s\-–—•\*\d\.)]+', '', s)
+    s = re.sub(r'[\s\-–—•\*\d\.)]+$', '', s)
+    # Normalize spaces
+    s = re.sub(r'\s+', ' ', s)
+    # Remove enclosing quotes
+    s = s.strip('"\'')
+    return s
+
+def generate_personalized_result(level, resources, style='default'):
+    """
+    Use the LLM to generate a short, style-matched encouragement string (with HTML links) for teens, based on stress level and style.
+    Always append the waitlist link for all users/styles/levels. Fallback to static if LLM fails.
+    """
+    encouragements = {
+        "Low": "You're doing well! Keep taking care of yourself.",
+        "Moderate": "Remember to take breaks and talk to someone you trust.",
+        "High": "It's okay to seek help. You're not alone. Consider reaching out for support."
+    }
+    waitlist_html = f"<a href='{resources['waitlist']}' target='_blank'>Join the Ìmọ̀lè waitlist</a>"
+    # Compose LLM prompt
+    style_desc = {
+        'genalpha': 'Gen Alpha style: playful, emoji-rich, super short, and kid-friendly. Use emojis and keep it fun.',
+        'genz': 'Gen Z style: casual, fun, internet slang, and some emojis. Use short sentences and relatable language.',
+        'default': 'Simple, friendly, and encouraging. Use clear, positive language for teens.'
+    }.get(style, 'Simple, friendly, and encouraging. Use clear, positive language for teens.')
+    resource_list = (
+        f"- Self-care game: {resources['self_care_game']}\n"
+        f"- Spotify playlist: {resources['spotify']}\n"
+        f"- Breathing exercise: {resources['breathing']}\n"
+        f"- Journaling prompt: {resources['journaling']}\n"
+        f"- Feedback: {resources['feedback']}\n"
+        f"- Waitlist: {resources['waitlist']}\n"
     )
-    # Prompt for the LLM
-    prompt = (
-        f"{base}{style_prompt} Based on a stress level of '{encouragement_level}', write a short, warm, and encouraging message personalized for the user. "
-        f"Then, suggest 2-3 of the following resources that would be most helpful for this stress level, and explain why. Always include the waitlist and Spotify links as the first <li> in your <ul>.\n"
-        f"Resources (use these HTML links in your <ul>):\n{resource_html}\n"
-        f"Respond in 2-3 sentences. The encouragement message should come before the <ul>. After the <ul>, add this explanation in a <div class='resource-explanation' style='margin-top:0.7rem;color:#555;'>These resources can help you manage your high stress level by providing immediate support, teaching relaxation techniques, and promoting self-care. The breathing exercise and self-care game can help calm your mind and body, while joining the Ìmọ̀lè waitlist can connect you with a supportive community.</div> Do not include any other formatting."
-    )
+    prompt = f"""
+Write a short, personalized encouragement message (no more than 1- 6 sentences) for a teen who just completed a stress survey.
+
+Start with a word or phrase of encouragement (like "Awesome!", "You got this!", "Hey, you're not alone!", etc). The user's stress level is: {level}.
+Style: {style_desc}
+
+Make it concise, positive, and easy to read for a teenager. Use the style above. Include at least one of the following helpful resource links (as HTML anchor tags):
+{resource_list}
+
+When mentioning the waitlist, present it as a way to meet new peers or connect with others like them (not just for professional help). (Do not just input the naked link but instead embedded in a text) Example: "Join the Ìmọ̀lè waitlist to meet new friends and connect with others who get it!"
+
+Do NOT say you are an assistant, do NOT mention helping with feelings, and do NOT refer to yourself. Only encourage the user directly.
+
+Always include the waitlist link. Respond with HTML suitable for web display (Do not just input the naked link but instead embedded in a text). Do NOT write more than 3 sentences.
+"""
     payload = {
         "model": "meta-llama/llama-4-scout-17b-16e-instruct",
         "messages": [{"role": "user", "content": prompt}]
     }
     headers = {
         "Content-Type": "application/json",
-        "Authorization": "Bearer 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"
+        "Authorization": f"Bearer {GROQ_API_KEY}"
     }
-    import requests
-    response = requests.post("https://api.groq.com/openai/v1/chat/completions",
-                             json=payload, headers=headers)
-    if response.status_code == 200:
-        resp_json = response.json()
-        result_text = resp_json['choices'][0]['message']['content'].strip()
-        return result_text
+    try:
+        response = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                                 json=payload, headers=headers, timeout=10)
+        if response.status_code == 200:
+            resp_json = response.json()
+            llm_msg = resp_json['choices'][0]['message']['content'].strip()
+            # Ensure waitlist link is present
+            if resources['waitlist'] not in llm_msg:
+                llm_msg += f"<br><br>{waitlist_html}"
+            return llm_msg
+        else:
+            print(f"[LLM-ENCOURAGEMENT-ERROR] {response.status_code} {response.text}")
+    except Exception as e:
+        print(f"[LLM-ENCOURAGEMENT-EXCEPTION] {e}")
+    # Fallback to static encouragement
+    return (f"{encouragements.get(level, encouragements['Moderate'])} "
+            f"<br><br>{waitlist_html}")
+
+def map_users_answers_to_ml_yo_index(answers):
+    """
+    Map Yoruba user answers to canonical ML options by index using the questions dict.
+    """
+    mapped = {}
+    for feat, value in answers.items():
+        yo_opts = questions.get(feat, {}).get("yo", [])
+        en_opts = questions.get(feat, {}).get("en", [])
+        try:
+            idx = yo_opts.index(value)
+            ml_opt = en_opts[idx] if idx < len(en_opts) else value
+            mapped[feat] = ml_opt
+            print(f"[YO-INDEX-MAP] {feat}: '{value}' (idx {idx}) -> '{ml_opt}'")
+        except Exception as e:
+            mapped[feat] = value
+            print(f"[YO-INDEX-MAP][FALLBACK] {feat}: '{value}' (error: {e})")
+    return mapped
+
+def map_users_answers_to_ml_ig_index(answers):
+    """
+    Map Igbo user answers to canonical ML options by index using the questions dict.
+    """
+    mapped = {}
+    for feat, value in answers.items():
+        ig_opts = questions.get(feat, {}).get("ig", [])
+        en_opts = questions.get(feat, {}).get("en", [])
+        try:
+            idx = ig_opts.index(value)
+            ml_opt = en_opts[idx] if idx < len(en_opts) else value
+            mapped[feat] = ml_opt
+            print(f"[IG-INDEX-MAP] {feat}: '{value}' (idx {idx}) -> '{ml_opt}'")
+        except Exception as e:
+            mapped[feat] = value
+            print(f"[IG-INDEX-MAP][FALLBACK] {feat}: '{value}' (error: {e})")
+    return mapped
+
+def map_users_answers_to_ml_ha_index(answers):
+    """
+    Map Hausa user answers to canonical ML options by index using the questions dict.
+    """
+    mapped = {}
+    for feat, value in answers.items():
+        ha_opts = questions.get(feat, {}).get("ha", [])
+        en_opts = questions.get(feat, {}).get("en", [])
+        try:
+            idx = ha_opts.index(value)
+            ml_opt = en_opts[idx] if idx < len(en_opts) else value
+            mapped[feat] = ml_opt
+            print(f"[HA-INDEX-MAP] {feat}: '{value}' (idx {idx}) -> '{ml_opt}'")
+        except Exception as e:
+            mapped[feat] = value
+            print(f"[HA-INDEX-MAP][FALLBACK] {feat}: '{value}' (error: {e})")
+    return mapped
+
+def map_users_answers_to_ml_by_language(answers, language):
+    """
+    General mapping dispatcher: maps user answers to canonical ML options based on language.
+    Uses index-based mapping for yo, ig, ha; pidgin mapping for pidgin; English mapping for en/None.
+    """
+    if language == "yo":
+        return map_users_answers_to_ml_yo_index(answers)
+    elif language == "ig":
+        return map_users_answers_to_ml_ig_index(answers)
+    elif language == "ha":
+        return map_users_answers_to_ml_ha_index(answers)
+    elif language == "pidgin":
+        return map_users_answers_to_ml(answers)
     else:
-        print(f"LLM API error (result): {response.status_code} {response.text}")
-        return None
+        return map_user_answers_to_ml(answers)
+
+def ensemble_with_llm_verification(user_answers, ml_pred, ml_confidence, llm_pred, llm_confidence, model=None, encode_fn=None):
+    """
+    If answers are contradictory (by ai_reasoning_layer), use LLM to verify and generate its own output.
+    Then, run the LLM's mapped answers through the ML model again to see if the predictions match.
+    Returns: final_pred, llm_verification_pred, ml_on_llm_pred, contradiction_detected, llm_verification_reasoning
+    """
+    contradiction = False
+    rule_pred_num = ai_reasoning_layer(list(user_answers.values()))
+    num_to_label = {0: "Low", 1: "Moderate", 2: "High"}
+    rule_pred = num_to_label.get(rule_pred_num, "Moderate")
+    # Use encoded answers for contradiction check
+    if encode_fn is not None:
+        encoded = encode_fn(user_answers)
+        nums = list(encoded.values())
+    else:
+        nums = [int(a) for a in user_answers.values() if str(a).isdigit()]
+    if len(nums) >= 2 and max(nums) - min(nums) >= 2:
+        contradiction = True
+        print(f"[DEBUG][ENSEMBLE] Contradiction detected: nums={nums}")
+    else:
+        print(f"[DEBUG][ENSEMBLE] No contradiction: nums={nums}")
+    if contradiction and model is not None and encode_fn is not None:
+        print(f"[DEBUG][ENSEMBLE] Invoking LLM for verification...")
+        llm_pred, llm_reasoning = call_llm_reasoner_with_reasoning(user_answers, ml_pred)
+        print(f"[DEBUG][ENSEMBLE] LLM output: pred={llm_pred}, reasoning={llm_reasoning}")
+        processed_input = encode_fn(user_answers)
+        import numpy as np
+        import pandas as pd
+        input_df = pd.DataFrame([processed_input])
+        ml_on_llm_pred_class = model.predict(input_df)[0]
+        stress_map = {0: "High", 1: "Low", 2: "Moderate"}
+        ml_on_llm_pred = stress_map.get(ml_on_llm_pred_class, "Unknown")
+        print(f"[DEBUG][ENSEMBLE] ML prediction on LLM-verified input: {ml_on_llm_pred}")
+        return llm_pred, llm_pred, ml_on_llm_pred, contradiction, llm_reasoning
+    # Default: use ML/LLM ensemble as before
+    print(f"[DEBUG][ENSEMBLE] Using default ensemble decision.")
+    return final_decision(ml_pred, ml_confidence, llm_pred, llm_confidence), None, None, contradiction, None
+
+def map_llm_styled_answers_to_ml(answers, llm_options, feature=None):
+    """
+    Map LLM-styled answers (e.g., Gen Z/Alpha) back to canonical ML options using index mapping.
+    For each answer, find its index in llm_options, map to user_friendly_options, then to option_map_to_ml.
+    """
+    mapped = {}
+    for feat, value in answers.items():
+        if llm_options and feat in llm_options:
+            try:
+                idx = llm_options[feat].index(value)
+                orig_opt = user_friendly_options[feat][idx]
+                ml_opt = option_map_to_ml[feat][orig_opt]
+                mapped[feat] = ml_opt
+                print(f"[DEBUG][LLM-STRICT-MAP] {feat}: LLM option '{value}' at idx {idx} -> user option '{orig_opt}' -> ML option '{ml_opt}'")
+                continue
+            except Exception as e:
+                print(f"[DEBUG][LLM-STRICT-MAP-ERROR] {feat}: Could not map LLM option '{value}' by index. Error: {e}")
+        # Fallback to normal mapping
+        if feat in option_map_to_ml and value in option_map_to_ml[feat]:
+            ml_opt = option_map_to_ml[feat][value]
+            mapped[feat] = ml_opt
+            print(f"[DEBUG][LLM-STRICT-DIRECT] {feat}: User value '{value}' -> ML option '{ml_opt}'")
+        else:
+            mapped[feat] = value  # fallback: use as-is
+            print(f"[DEBUG][LLM-STRICT-FALLBACK] {feat}: Using value as-is: '{value}'")
+    return mapped
+
+
+

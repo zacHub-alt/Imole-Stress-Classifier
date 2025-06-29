@@ -14,8 +14,12 @@
       href="{{ url_for('static', filename='css/style.css') }}"
       id="base-css"
     />
-    <link id="lang-css" rel="stylesheet" href="{% if language == 'yo' %}/static/css/style_yoruba.css{% elif language == 'ig' %}/static/css/style_igbo.css{% elif language == 'ha' %}/static/css/style_hausa.css{% else %}/static/css/style_default.css{% endif %}">
-
+    <link id="lang-css" rel="stylesheet"
+  href="{% if language == 'pidgin' %}/static/css/style_pidgin.css
+        {% elif language == 'ig' %}/static/css/style_igbo.css
+        {% elif language == 'ha' %}/static/css/style_hausa.css
+        {% elif language == 'yo' %}/static/css/style_yoruba.css
+        {% else %}/static/css/style_default.css{% endif %}">
     <style>
       #music-modal,
       #spotify-modal {
@@ -119,6 +123,86 @@
     {% block head %}{% endblock %}
 </head>
 <body>
+    <!-- Green AI Info Banner (dismissible, once per session) -->
+    {% if not session.get('green_ai_banner_dismissed') %}
+    <div id="green-ai-banner" class="alert alert-success text-center mb-0" style="border-radius:0;">
+      <strong>🌱 Green AI:</strong> Did you know? Every time you use advanced AI features, a small amount of energy is used, which contributes to climate change. We’re committed to using AI responsibly and minimizing our environmental impact.
+      <button type="button" class="btn-close float-end" aria-label="Close" onclick="dismissGreenAIBanner()"></button>
+    </div>
+    <script>
+      function dismissGreenAIBanner() {
+        document.getElementById('green-ai-banner').style.display = 'none';
+        fetch('/dismiss_green_ai_banner', {method: 'POST'});
+      }
+    </script>
+    <!-- End Green AI Info Banner -->
+    {% endif %}
+
+    {% if session.get('eco_mode') %}
+    <!-- Persistent Eco Mode Indicator -->
+    <div class="alert alert-info text-center mb-0" style="border-radius:0;">
+      🌿 Eco Mode is <strong>ON</strong>: Only low-energy (non-AI) features are active.
+    </div>
+    {% endif %}
+    
+    <!-- Sorry Modal for non-African users -->
+    <div id="sorry-modal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(255,0,0,0.08); z-index: 12000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+      <div style="background: #fff; border-radius: 18px; box-shadow: 0 4px 24px rgba(44,62,80,0.18); padding: 2.2rem 2.5rem 1.5rem 2.5rem; max-width: 400px; text-align: center;">
+        <h4 style="color:#d9534f; font-weight:700; margin-bottom:1rem;">Sorry!</h4>
+        <p style="color:#333; font-size:1.08rem; margin-bottom:1.2rem;">
+          You can't access this test as it is explicitly for African teens.<br>
+          If you have an access code, enter it below to proceed.
+        </p>
+        <input type="text" id="access-code-input" class="form-control mb-2" placeholder="Enter access code">
+        <button type="button" id="access-code-btn" style="background: #1db954; color: #fff; font-weight: 600; padding: 0.6rem 2.2rem; border: none; border-radius: 24px; width:100%;">Submit Code</button>
+        <div id="access-code-error" style="color:#d9534f; margin-top:10px; display:none;">Invalid access code.</div>
+      </div>
+    </div>
+    <!-- End Sorry Modal -->
+
+    <!-- Country Selection Modal -->
+    <div id="country-modal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(255,255,255,0.25); z-index: 11000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+      <div style="background: rgba(255,255,255,0.92); border-radius: 18px; box-shadow: 0 4px 24px rgba(44,62,80,0.18); padding: 2.2rem 2.5rem 1.5rem 2.5rem; max-width: 400px; text-align: center;">
+        <h4 style="color:#1db954; font-weight:700; margin-bottom:1rem;">Where are you from?</h4>
+        <form id="country-form">
+          <div style="text-align:left; max-height:300px; overflow-y:auto;">
+            <label><b>Africa</b></label>
+            <select class="form-select mb-2" name="country_africa">
+              <option value="">Select a country</option>
+              <option>Algeria</option><option>Angola</option><option>Benin</option><option>Botswana</option><option>Burkina Faso</option><option>Burundi</option><option>Cabo Verde</option><option>Cameroon</option><option>Central African Republic</option><option>Chad</option><option>Comoros</option><option>Congo (Congo-Brazzaville)</option><option>Democratic Republic of the Congo (Congo-Kinshasa)</option><option>Djibouti</option><option>Egypt</option><option>Equatorial Guinea</option><option>Eritrea</option><option>Eswatini</option><option>Ethiopia</option><option>Gabon</option><option>Gambia</option><option>Ghana</option><option>Guinea</option><option>Guinea-Bissau</option><option>Ivory Coast</option><option>Kenya</option><option>Lesotho</option><option>Liberia</option><option>Libya</option><option>Madagascar</option><option>Malawi</option><option>Mali</option><option>Mauritania</option><option>Mauritius</option><option>Morocco</option><option>Mozambique</option><option>Namibia</option><option>Niger</option><option>Nigeria</option><option>Rwanda</option><option>São Tomé and Príncipe</option><option>Senegal</option><option>Seychelles</option><option>Sierra Leone</option><option>Somalia</option><option>South Africa</option><option>South Sudan</option><option>Sudan</option><option>Tanzania</option><option>Togo</option><option>Tunisia</option><option>Uganda</option><option>Zambia</option><option>Zimbabwe</option>
+            </select>
+            <label><b>Europe</b></label>
+            <select class="form-select mb-2" name="country_europe">
+              <option value="">Select a country</option>
+              <option>Albania</option><option>Andorra</option><option>Austria</option><option>Belarus</option><option>Belgium</option><option>Bosnia and Herzegovina</option><option>Bulgaria</option><option>Croatia</option><option>Czechia (Czech Republic)</option><option>Denmark</option><option>Estonia</option><option>Finland</option><option>France</option><option>Germany</option><option>Greece</option><option>Hungary</option><option>Iceland</option><option>Ireland</option><option>Italy</option><option>Kosovo</option><option>Latvia</option><option>Liechtenstein</option><option>Lithuania</option><option>Luxembourg</option><option>Malta</option><option>Moldova</option><option>Monaco</option><option>Montenegro</option><option>Netherlands</option><option>North Macedonia</option><option>Norway</option><option>Poland</option><option>Portugal</option><option>Romania</option><option>Russia</option><option>San Marino</option><option>Serbia</option><option>Slovakia</option><option>Slovenia</option><option>Spain</option><option>Sweden</option><option>Switzerland</option><option>Ukraine</option><option>United Kingdom</option><option>Vatican City</option>
+            </select>
+            <label><b>Asia</b></label>
+            <select class="form-select mb-2" name="country_asia">
+              <option value="">Select a country</option>
+              <option>Afghanistan</option><option>Armenia</option><option>Azerbaijan</option><option>Bahrain</option><option>Bangladesh</option><option>Bhutan</option><option>Brunei</option><option>Cambodia</option><option>China</option><option>Cyprus</option><option>Georgia</option><option>India</option><option>Indonesia</option><option>Iran</option><option>Iraq</option><option>Israel</option><option>Japan</option><option>Jordan</option><option>Kazakhstan</option><option>Kuwait</option><option>Kyrgyzstan</option><option>Laos</option><option>Lebanon</option><option>Malaysia</option><option>Maldives</option><option>Mongolia</option><option>Myanmar (Burma)</option><option>Nepal</option><option>North Korea</option><option>Oman</option><option>Pakistan</option><option>Palestine</option><option>Philippines</option><option>Qatar</option><option>Russia</option><option>Saudi Arabia</option><option>Singapore</option><option>South Korea</option><option>Sri Lanka</option><option>Syria</option><option>Taiwan</option><option>Tajikistan</option><option>Thailand</option><option>Timor-Leste</option><option>Turkey</option><option>Turkmenistan</option><option>United Arab Emirates</option><option>Uzbekistan</option><option>Vietnam</option><option>Yemen</option>
+            </select>
+            <label><b>North America</b></label>
+            <select class="form-select mb-2" name="country_northamerica">
+              <option value="">Select a country</option>
+              <option>Antigua and Barbuda</option><option>Bahamas</option><option>Barbados</option><option>Belize</option><option>Canada</option><option>Costa Rica</option><option>Cuba</option><option>Dominica</option><option>Dominican Republic</option><option>El Salvador</option><option>Grenada</option><option>Guatemala</option><option>Haiti</option><option>Honduras</option><option>Jamaica</option><option>Mexico</option><option>Nicaragua</option><option>Panama</option><option>Saint Kitts and Nevis</option><option>Saint Lucia</option><option>Saint Vincent and the Grenadines</option><option>Trinidad and Tobago</option><option>United States</option>
+            </select>
+            <label><b>South America</b></label>
+            <select class="form-select mb-2" name="country_southamerica">
+              <option value="">Select a country</option>
+              <option>Argentina</option><option>Bolivia</option><option>Brazil</option><option>Chile</option><option>Colombia</option><option>Ecuador</option><option>Guyana</option><option>Paraguay</option><option>Peru</option><option>Suriname</option><option>Uruguay</option><option>Venezuela</option>
+            </select>
+            <label><b>Oceania</b></label>
+            <select class="form-select mb-2" name="country_oceania">
+              <option value="">Select a country</option>
+              <option>Australia</option><option>Fiji</option><option>Kiribati</option><option>Marshall Islands</option><option>Micronesia</option><option>Nauru</option><option>New Zealand</option><option>Palau</option><option>Papua New Guinea</option><option>Samoa</option><option>Solomon Islands</option><option>Tonga</option><option>Tuvalu</option><option>Vanuatu</option>
+            </select>
+          </div>
+          <button type="button" id="country-access-btn" style="background: #1db954; color: #fff; font-weight: 600; padding: 0.6rem 2.2rem; border: none; border-radius: 24px; margin-top: 1.2rem; width:100%;">Access</button>
+        </form>
+      </div>
+    </div>
+    <!-- End Country Selection Modal -->
+
     <!-- Music Consent Modal -->
     <div id="music-modal">
       <div id="music-modal-content">
@@ -223,6 +307,15 @@
 <div class="container">
   {% block content %}{% endblock %}
 </div>
+<!-- Add Supabase JS client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.min.js"></script>
+    <script>
+      // These values are injected by Flask from your .env
+      const SUPABASE_URL = "{{ config['NEXT_PUBLIC_SUPABASE_URL'] }}";
+      const SUPABASE_KEY = "{{ config['NEXT_PUBLIC_SUPABASE_ANON_KEY'] }}";
+      const SUPABASE_TABLE = "{{ config['SUPABASE_TABLE'] }}";
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    </script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const spotifyPlaylists = [
@@ -261,11 +354,12 @@
 </body>
 </html>
 
-
     <script>
       document.addEventListener("DOMContentLoaded", function () {
-        var modal = document.getElementById("music-modal");
+        var countryModal = document.getElementById("country-modal");
+        var musicModal = document.getElementById("music-modal");
         var spotifyModal = document.getElementById("spotify-modal");
+        var sorryModal = document.getElementById("sorry-modal");
         var yesBtn = document.getElementById("music-yes");
         var noBtn = document.getElementById("music-no");
         var spotifyCloseBtn = document.getElementById("spotify-close");
@@ -273,12 +367,13 @@
         var persistentClose = document.getElementById("persistent-close");
 
         // Initially hide all
-        modal.style.display = "none";
+        countryModal.style.display = "none";
+        musicModal.style.display = "none";
         spotifyModal.style.display = "none";
         persistentPlayer.style.display = "none";
 
         function showModal() {
-          modal.style.display = "flex";
+          musicModal.style.display = "flex";
         }
         function showSpotifyModal() {
           spotifyModal.style.display = "flex";
@@ -297,12 +392,12 @@
         }
 
         yesBtn.onclick = function () {
-          modal.style.display = "none";
+          musicModal.style.display = "none";
           showSpotifyModal();
         };
 
         noBtn.onclick = function () {
-          modal.style.display = "none";
+          musicModal.style.display = "none";
           sessionStorage.setItem("musicChoiceMade", "1");
           sessionStorage.removeItem("musicPlaying");
         };
@@ -320,7 +415,26 @@
           sessionStorage.removeItem("musicPlaying");
         };
 
-        
+        // Show country modal first
+        countryModal.style.display = "flex";
+        if(musicModal) musicModal.style.display = "none";
+        document.getElementById("country-form").addEventListener("submit", function(e) {
+          e.preventDefault();
+          let country = '';
+          const selects = document.querySelectorAll('#country-form select');
+          selects.forEach(sel => {
+            if(sel.value) country = sel.value;
+          });
+          if(country) {
+            countryModal.style.display = "none";
+            if(musicModal) musicModal.style.display = "flex";
+            // Optionally, store country in localStorage or send to backend
+          } else {
+            alert('Please select your country.');
+          }
+        });
+
+
 
         // Open modal when clicking the persistent player (except close button)
        let isDragging = false;
@@ -481,5 +595,153 @@ playerIframe.addEventListener("click", function (e) {
         window.addEventListener("touchcancel", onPointerUp);
       });
     </script>
-</body>
-</html>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // Check if country modal has been shown before
+    
+    var countryModal = document.getElementById("country-modal");
+    var musicModal = document.getElementById("music-modal");
+    var sorryModal = document.getElementById("sorry-modal");
+    // Only show country modal if not already selected
+    if (!localStorage.getItem('selected_country')) {
+      countryModal.style.display = "flex";
+      if(musicModal) musicModal.style.display = "none";
+    } else {
+      countryModal.style.display = "none";
+      countryModal.style.pointerEvents = "none";
+    }
+
+    document.getElementById("country-access-btn").onclick = async function(e) {
+      e.preventDefault();
+      const africaSelect = document.querySelector('select[name="country_africa"]');
+      const europeSelect = document.querySelector('select[name="country_europe"]');
+      const asiaSelect = document.querySelector('select[name="country_asia"]');
+      const naSelect = document.querySelector('select[name="country_northamerica"]');
+      const saSelect = document.querySelector('select[name="country_southamerica"]');
+      const oceaniaSelect = document.querySelector('select[name="country_oceania"]');
+      let country = '';
+      let isAfrican = false;
+      console.log('DEBUG:', {
+        africa: africaSelect.value,
+        europe: europeSelect.value,
+        asia: asiaSelect.value,
+        na: naSelect.value,
+        sa: saSelect.value,
+        oceania: oceaniaSelect.value
+      });
+      // Only allow if Africa is selected and all others are empty
+      if (
+        africaSelect.value &&
+        !europeSelect.value &&
+        !asiaSelect.value &&
+        !naSelect.value &&
+        !saSelect.value &&
+        !oceaniaSelect.value
+      ) {
+        country = africaSelect.value;
+        isAfrican = true;
+        console.log('DEBUG: African country selected:', country);
+      } else if (
+        europeSelect.value ||
+        asiaSelect.value ||
+        naSelect.value ||
+        saSelect.value ||
+        oceaniaSelect.value
+      ) {
+        // Non-African country selected
+        country = europeSelect.value || asiaSelect.value || naSelect.value || saSelect.value || oceaniaSelect.value;
+        isAfrican = false;
+        console.log('DEBUG: Non-African country selected:', country);
+      }
+      if(country) {
+        if(isAfrican) {
+          // Store in localStorage
+          localStorage.setItem('selected_country', country);
+          fetch('/set_country', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({ country: country })
+          });
+          // Hide all other modals before showing music modal
+          countryModal.style.display = "none";
+          countryModal.style.pointerEvents = "none";
+          if(sorryModal) {
+            sorryModal.style.display = "none";
+            sorryModal.style.pointerEvents = "none";
+            console.log('DEBUG: Hiding sorryModal');
+          }
+          if(musicModal) {
+            musicModal.style.display = "flex";
+            musicModal.style.pointerEvents = "auto";
+            musicModal.style.zIndex = 13000;
+            console.log('DEBUG: Showing musicModal');
+          }
+        } else {
+          // Show sorry modal
+          localStorage.setItem('country_modal_shown', 'true');
+          countryModal.style.display = "none";
+          countryModal.style.pointerEvents = "none";
+          if(sorryModal) {
+            sorryModal.style.display = "flex";
+            sorryModal.style.pointerEvents = "auto";
+            sorryModal.style.zIndex = 13000;
+            console.log('DEBUG: Showing sorryModal');
+          }
+        }
+      } else {
+        alert('Please select your country.');
+        console.log('DEBUG: No country selected');
+      }
+    };
+    // Access code logic
+    document.getElementById("access-code-btn").onclick = function() {
+      var code = document.getElementById("access-code-input").value.trim();
+      var errorDiv = document.getElementById("access-code-error");
+      // Replace 'AFRICA2025' with your real access code
+      if(code === 'AFRICA2025') {
+        // Set flag so modal never shows again
+        localStorage.setItem('selected_country', 'access_code');
+        fetch('/set_country', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ country: 'access_code' })
+        });
+        sorryModal.style.display = "none";
+        sorryModal.style.pointerEvents = "none";
+        if(countryModal) {
+          countryModal.style.display = "none";
+          countryModal.style.pointerEvents = "none";
+          console.log('DEBUG: Hiding countryModal from access code');
+        }
+        if(musicModal) {
+          musicModal.style.display = "flex";
+          musicModal.style.pointerEvents = "auto";
+          musicModal.style.zIndex = 13000;
+          console.log('DEBUG: Showing musicModal from access code');
+        }
+      } else {
+        errorDiv.style.display = "block";
+        console.log('DEBUG: Invalid access code');
+      }
+    };
+  });
+</script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // Only allow one dropdown selection at a time
+    const selects = document.querySelectorAll('#country-form select');
+    selects.forEach(sel => {
+      sel.addEventListener('change', function() {
+        selects.forEach(other => {
+          if(other !== sel) other.selectedIndex = 0;
+        });
+      });
+    });
+  });
+</script>

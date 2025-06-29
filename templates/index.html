@@ -6,10 +6,25 @@
     <p>{{ ui['welcome'] }}</p>
 </div>
 
+<!-- Eco Mode Toggle -->
+<div class="mb-3">
+  <form method="POST" action="" id="eco-mode-form" style="display:inline;">
+    <input type="hidden" name="toggle_eco_mode" value="1">
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" id="ecoModeSwitch" name="eco_mode" value="1" {% if session.get('eco_mode') %}checked{% endif %} onchange="document.getElementById('eco-mode-form').submit();">
+      <label class="form-check-label" for="ecoModeSwitch">
+        🌿 Eco Mode: Use only low-energy (non-AI) features
+      </label>
+    </div>
+  </form>
+  <small class="text-muted">Eco Mode disables advanced AI features to reduce energy use and carbon footprint.</small>
+</div>
+<!-- End Eco Mode Toggle -->
+
 <!-- Cultural loading overlay -->
 <div id="cultural-loading" style="display:none; position:fixed; z-index:9999; top:0; left:0; width:100vw; height:100vh; background:rgba(255,255,255,0.85); text-align:center;">
     <div style="position:relative; top:30vh;">
-        <img id="motif-spinner" src="/static/css/igbo_motifs.png" alt="Loading motif" style="width:80px; height:80px; animation:spin 1.2s linear infinite; border-radius:50%; box-shadow:0 0 16px #a71d2a; background:#fff;" />
+        <img id="motif-spinner" src="/static/css/english_motifs.png" alt="Loading motif" style="width:80px; height:80px; animation:spin 1.2s linear infinite; border-radius:50%; box-shadow:0 0 16px #a71d2a; background:#fff;" />
         <div id="loading-message" style="margin-top:1.5rem; font-size:1.3rem; color:#a71d2a; font-weight:bold;">Loading questions...</div>
     </div>
 </div>
@@ -32,6 +47,7 @@
         <select class="form-select" id="language" name="language" required>
             <option value="" selected disabled>{{ ui['select_option'] }}</option>
             <option value="en">English</option>
+            <option value="pidgin">Pidgin</option>
             <option value="yo">Yoruba</option>
             <option value="ig">Igbo</option>
             <option value="ha">Hausa</option>
@@ -50,6 +66,7 @@
     <div class="mb-3">
         <label for="language" class="form-label">{{ ui['select_language'] }}</label>
         <select class="form-select" id="language" name="language" onchange="showCulturalLoading(this.value); this.form.submit()">
+            <option value="pidgin" {% if language == 'pidgin' %}selected{% endif %}>Pidgin</option>
             <option value="en" {% if language == 'en' %}selected{% endif %}>English</option>
             <option value="yo" {% if language == 'yo' %}selected{% endif %}>Yoruba</option>
             <option value="ig" {% if language == 'ig' %}selected{% endif %}>Igbo</option>
@@ -97,7 +114,12 @@ function showCulturalLoading(lang) {
     var msg = document.getElementById('loading-message');
     if (!overlay) return;
     // Pick motif and color for each language
-    if (lang === 'yo') {
+    if (lang == 'pidgin') {
+        spinner.src = '/static/css/pidgin_motifs.png';
+        spinner.style.boxShadow = '0 0 16px #ff6f61';
+        msg.style.color = '#ff6f61';
+        msg.textContent = 'Question dey load...';
+    } else if (lang === 'yo') {
         spinner.src = '/static/css/yoruba_motifs.png';
         spinner.style.boxShadow = '0 0 16px #1a237e';
         msg.style.color = '#1a237e';
@@ -118,7 +140,7 @@ function showCulturalLoading(lang) {
         msg.style.color = '#4b7bec';
         msg.textContent = 'Loading... Generating your personalized questions and answers...';
     } else {
-        spinner.src = '/static/css/igbo_motifs.png';
+        spinner.src = '/static/css/english_motifs.png';
         spinner.style.boxShadow = '0 0 16px #a71d2a';
         msg.style.color = '#a71d2a';
         msg.textContent = 'Loading questions...';
@@ -176,7 +198,12 @@ window.addEventListener('DOMContentLoaded', function() {
             var spinner = document.getElementById('motif-spinner');
             var msg = document.getElementById('loading-message');
             if (!(overlay && spinner && msg)) return;
-            if (langSel.value === 'en') {
+            if (langSel.value === 'pidgin') {
+                spinner.src = '/static/css/pidgin_motifs.png';
+                spinner.style.boxShadow = '0 0 16px #ff6f61';
+                msg.style.color = '#ff6f61';
+                msg.textContent = 'Your stress level dey load...';
+            } else if (langSel.value === 'en') {
                 spinner.src = '/static/css/english_motifs.png';
                 spinner.style.boxShadow = '0 0 16px #4b7bec';
                 msg.style.color = '#4b7bec';
@@ -197,7 +224,7 @@ window.addEventListener('DOMContentLoaded', function() {
                 msg.style.color = '#142850';
                 msg.textContent = 'Ana tantance matakin damuwarka...';
             } else {
-                spinner.src = '/static/css/igbo_motifs.png';
+                spinner.src = '/static/css/english_motifs.png';
                 spinner.style.boxShadow = '0 0 16px #a71d2a';
                 msg.style.color = '#a71d2a';
                 msg.textContent = 'Getting your stress level...';
@@ -217,6 +244,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const selectedLang = this.value;
 
             switch (selectedLang) {
+                case 'pidgin': 
+                    langCssLink.href = '/static/css/style_pidgin.css';
+                    break;
                 case 'yo':
                     langCssLink.href = '/static/css/style_yoruba.css';
                     break;
